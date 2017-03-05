@@ -183,8 +183,9 @@ struct ExprAttrs : Expr
         Expr * e;
         Pos pos;
         unsigned int displ; // displacement
-        AttrDef(Expr * e, const Pos & pos, bool inherited=false)
-            : inherited(inherited), e(e), pos(pos) { };
+        char *docComment;
+        AttrDef(Expr * e, const Pos & pos, bool inherited=false, char *docComment=NULL)
+            : inherited(inherited), e(e), pos(pos), docComment(docComment) { };
         AttrDef() { };
     };
     typedef std::map<Symbol, AttrDef> AttrDefs;
@@ -192,8 +193,9 @@ struct ExprAttrs : Expr
     struct DynamicAttrDef {
         Expr * nameExpr, * valueExpr;
         Pos pos;
-        DynamicAttrDef(Expr * nameExpr, Expr * valueExpr, const Pos & pos)
-            : nameExpr(nameExpr), valueExpr(valueExpr), pos(pos) { };
+        char *docComment;
+        DynamicAttrDef(Expr * nameExpr, Expr * valueExpr, const Pos & pos, char *docComment=NULL)
+            : nameExpr(nameExpr), valueExpr(valueExpr), pos(pos), docComment(docComment) { };
     };
     typedef std::vector<DynamicAttrDef> DynamicAttrDefs;
     DynamicAttrDefs dynamicAttrs;
@@ -212,7 +214,10 @@ struct Formal
 {
     Symbol name;
     Expr * def;
-    Formal(const Symbol & name, Expr * def) : name(name), def(def) { };
+    char *docComment;
+    Formal(const Symbol & name, Expr * def, char * docComment) : name(name), def(def), docComment(docComment) { };
+
+    ~Formal();
 };
 
 struct Formals
@@ -226,13 +231,14 @@ struct Formals
 struct ExprLambda : Expr
 {
     Pos pos;
+    const char *docComment;
     Symbol name;
     Symbol arg;
     bool matchAttrs;
     Formals * formals;
     Expr * body;
-    ExprLambda(const Pos & pos, const Symbol & arg, bool matchAttrs, Formals * formals, Expr * body)
-        : pos(pos), arg(arg), matchAttrs(matchAttrs), formals(formals), body(body)
+    ExprLambda(const Pos & pos, const char *docComment, const Symbol & arg, bool matchAttrs, Formals * formals, Expr * body)
+        : pos(pos), docComment(docComment), arg(arg), matchAttrs(matchAttrs), formals(formals), body(body)
     {
         if (!arg.empty() && formals && formals->argNames.find(arg) != formals->argNames.end())
             throw ParseError(format("duplicate formal function argument ‘%1%’ at %2%")
@@ -240,6 +246,7 @@ struct ExprLambda : Expr
     };
     void setName(Symbol & name);
     string showNamePos() const;
+    ~ExprLambda();
     COMMON_METHODS
 };
 

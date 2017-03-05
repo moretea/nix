@@ -10,7 +10,6 @@
 %x IND_STRING
 %x INSIDE_DOLLAR_CURLY
 
-
 %{
 #include "nixexpr.hh"
 #include "parser-tab.hh"
@@ -91,8 +90,7 @@ PATH        [a-zA-Z0-9\.\_\-\+]*(\/[a-zA-Z0-9\.\_\-\+]+)+\/?
 HPATH       \~(\/[a-zA-Z0-9\.\_\-\+]+)+\/?
 SPATH       \<[a-zA-Z0-9\.\_\-\+]+(\/[a-zA-Z0-9\.\_\-\+]+)*\>
 URI         [a-zA-Z][a-zA-Z0-9\+\-\.]*\:[a-zA-Z0-9\%\/\?\:\@\&\=\+\$\,\-\_\.\!\~\*\']+
-
-
+DOC_COMMENT  \/\*!([^*]|\*[^\/])*\*\/
 %%
 
 <INITIAL,INSIDE_DOLLAR_CURLY>{
@@ -194,6 +192,7 @@ or          { return OR_KW; }
             }
 {SPATH}     { yylval->path = strdup(yytext); return SPATH; }
 {URI}       { yylval->uri = strdup(yytext); return URI; }
+{DOC_COMMENT} { yylval->doc_comment = strndup(&yytext[3], strlen(yytext) - 5); return DOC_COMMENT; }
 
 [ \t\r\n]+    /* eat up whitespace */
 \#[^\r\n]*    /* single-line comments */

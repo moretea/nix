@@ -78,7 +78,7 @@ static void dupAttr(Symbol attr, const Pos & pos, const Pos & prevPos)
 
 
 static void addAttr(ExprAttrs * attrs, AttrPath & attrPath,
-    Expr * e, const Pos & pos)
+    Expr * e, const Pos & pos, char *docComment)
 {
     AttrPath::iterator i;
     // All attrpaths have at least one attr
@@ -109,11 +109,11 @@ static void addAttr(ExprAttrs * attrs, AttrPath & attrPath,
         if (j != attrs->attrs.end()) {
             dupAttr(attrPath, pos, j->second.pos);
         } else {
-            attrs->attrs[i->symbol] = ExprAttrs::AttrDef(e, pos);
+            attrs->attrs[i->symbol] = ExprAttrs::AttrDef(e, pos, docComment);
             e->setName(i->symbol);
         }
     } else {
-        attrs->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, e, pos));
+        attrs->dynamicAttrs.push_back(ExprAttrs::DynamicAttrDef(i->expr, e, pos, docComment));
     }
 }
 
@@ -250,6 +250,7 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParseData * data, const char * err
   const char * id; // !!! -> Symbol
   char * path;
   char * uri;
+  char *doc_comment;
   std::vector<nix::AttrName> * attrNames;
   std::vector<nix::Expr *> * string_parts;
 }
@@ -270,6 +271,7 @@ void yyerror(YYLTYPE * loc, yyscan_t scanner, ParseData * data, const char * err
 %token <nf> FLOAT
 %token <path> PATH HPATH SPATH
 %token <uri> URI
+%token <doc_comment> DOC_COMMENT
 %token IF THEN ELSE ASSERT WITH LET IN REC INHERIT EQ NEQ AND OR IMPL OR_KW
 %token DOLLAR_CURLY /* == ${ */
 %token IND_STRING_OPEN IND_STRING_CLOSE
@@ -295,14 +297,26 @@ start: expr { data->result = $1; };
 expr: expr_function;
 
 expr_function
-  : ID ':' expr_function
-    { $$ = new ExprLambda(CUR_POS, data->symbols.create($1), false, 0, $3); }
+  : ID ':' DOC_COMMENT expr_function
+    { $$ = new ExprLambda(CUR_POS, $3, data->symbols.create($1), false, 0, $4); }
+  | ID ':' expr_function
+    { $$ = new ExprLambda(CUR_POS, NULL, data->symbols.create($1), false, 0, $3); }
+
+  | '{' formals '}' ':' DOC_COMMENT expr_function
+    { $$ = new ExprLambda(CUR_POS, $5, data->symbols.create(""), true, $2, $6); }
   | '{' formals '}' ':' expr_function
-    { $$ = new ExprLambda(CUR_POS, data->symbols.create(""), true, $2, $5); }
+    { $$ = new ExprLambda(CUR_POS, NULL, data->symbols.create(""), true, $2, $5); }
+
+  | '{' formals '}' '@' ID ':' DOC_COMMENT expr_function
+    { $$ = new ExprLambda(CUR_POS, $7, data->symbols.create($5), true, $2, $8); }
   | '{' formals '}' '@' ID ':' expr_function
-    { $$ = new ExprLambda(CUR_POS, data->symbols.create($5), true, $2, $7); }
+    { $$ = new ExprLambda(CUR_POS, NULL, data->symbols.create($5), true, $2, $7); }
+
+  | ID '@' '{' formals '}' ':' DOC_COMMENT expr_function
+    { $$ = new ExprLambda(CUR_POS, $7, data->symbols.create($1), true, $4, $8); }
   | ID '@' '{' formals '}' ':' expr_function
-    { $$ = new ExprLambda(CUR_POS, data->symbols.create($1), true, $4, $7); }
+    { $$ = new ExprLambda(CUR_POS, NULL, data->symbols.create($1), true, $4, $7); }
+
   | ASSERT expr ';' expr_function
     { $$ = new ExprAssert(CUR_POS, $2, $4); }
   | WITH expr ';' expr_function
@@ -421,7 +435,8 @@ ind_string_parts
   ;
 
 binds
-  : binds attrpath '=' expr ';' { $$ = $1; addAttr($$, *$2, $4, makeCurPos(@2, data)); }
+  : binds attrpath '=' DOC_COMMENT expr ';' { $$ = $1; addAttr($$, *$2, $5, makeCurPos(@2, data), $4); }
+  | binds attrpath '=' expr ';' { $$ = $1; addAttr($$, *$2, $4, makeCurPos(@2, data), NULL); }
   | binds INHERIT attrs ';'
     { $$ = $1;
       for (auto & i : *$3) {
@@ -508,8 +523,12 @@ formals
   ;
 
 formal
-  : ID { $$ = new Formal(data->symbols.create($1), 0); }
-  | ID '?' expr { $$ = new Formal(data->symbols.create($1), $3); }
+  : ID { $$ = new Formal(data->symbols.create($1), 0, 0); }
+  | ID '?' expr { $$ = new Formal(data->symbols.create($1), $3, 0); }
+  | DOC_COMMENT ID { $$ = new Formal(data->symbols.create($2), 0, $1); }
+  | ID DOC_COMMENT { $$ = new Formal(data->symbols.create($1), 0, $2); }
+  | DOC_COMMENT ID '?' expr { $$ = new Formal(data->symbols.create($2), $4, $1); }
+  | ID '?' expr DOC_COMMENT { $$ = new Formal(data->symbols.create($1), $3, $4); }
   ;
 
 %%

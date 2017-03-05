@@ -434,5 +434,20 @@ size_t SymbolTable::totalSize() const
     return n;
 }
 
+Formal::~Formal() {
+  if (this->docComment != 0) {
+    // Free the C string.
+    free(this->docComment);
+    this->docComment = 0;
+  }
+}
+
+ExprLambda::~ExprLambda() {
+  if (this->docComment != 0) {
+    // Free the C string.
+    free((char*)this->docComment);
+    this->docComment = 0;
+  }
+}
 
 }

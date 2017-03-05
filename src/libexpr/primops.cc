@@ -1257,6 +1257,59 @@ static void prim_functionArgs(EvalState & state, const Pos & pos, Value * * args
     v.attrs->sort();
 }
 
+static void prim_functionArgDocs(EvalState & state, const Pos & pos, Value * * args, Value & v)
+{
+    state.forceValue(*args[0]);
+    if (args[0]->type != tLambda)
+        throw TypeError(format("‘functionArgDocs’ requires a function, at %1%") % pos);
+
+    if (!args[0]->lambda.fun->matchAttrs) {
+        state.mkAttrs(v, 0);
+        return;
+    }
+
+    state.mkAttrs(v, args[0]->lambda.fun->formals->formals.size());
+
+    for (auto & i : args[0]->lambda.fun->formals->formals) {
+        if (i.docComment != NULL)
+          mkString(*state.allocAttr(v, i.name), i.docComment);
+        else
+          mkNull(*state.allocAttr(v,i.name));
+    }
+
+    v.attrs->sort();
+}
+
+static void prim_functionDocs(EvalState & state, const Pos & pos, Value * * args, Value & v)
+{
+    state.forceValue(*args[0]);
+    if (args[0]->type != tLambda)
+        throw TypeError(format("‘functionDocs’ requires a function, at %1%") % pos);
+
+    if (args[0]->lambda.fun->docComment == NULL) {
+      mkNull(v);
+    } else {
+      mkString(v, args[0]->lambda.fun->docComment);
+    }
+}
+
+static void prim_attrDocs(EvalState & state, const Pos & pos, Value * * args, Value & v)
+{
+    state.forceValue(*args[0]);
+    if (args[0]->type != tAttrs)
+        throw TypeError(format("‘attrDocs’ requires an attribute set, at %1%") % pos);
+
+    state.mkAttrs(v, args[0]->attrs->size());
+
+    for (auto i = args[0]->attrs->begin(); i++; i <args[0]->attrs->end()) {
+        if (i->docComment != NULL)
+          mkString(*state.allocAttr(v, i->name), i->docComment);
+        else
+          mkNull(*state.allocAttr(v,i->name));
+    }
+
+    v.attrs->sort();
+}
 
 /*************************************************************
  * Lists
@@ -1954,6 +2007,9 @@ void EvalState::createBaseEnv()
     addPrimOp("__intersectAttrs", 2, prim_intersectAttrs);
     addPrimOp("__catAttrs", 2, prim_catAttrs);
     addPrimOp("__functionArgs", 1, prim_functionArgs);
+    addPrimOp("__functionArgDocs", 1, prim_functionArgDocs);
+    addPrimOp("__functionDocs", 1, prim_functionDocs);
+    addPrimOp("__attrDocs", 1, prim_attrDocs);
 
     // Lists
     addPrimOp("__isList", 1, prim_isList);
