@@ -13,13 +13,27 @@ RUN wget -O- https://nixos.org/releases/nix/nix-1.11.14/nix-1.11.14-x86_64-linux
   && for i in $(seq 1 30); do adduser -S -D -h /var/empty -g "Nix build user $i" -u $((30000 + i)) -G nixbld nixbld$i ; done \
   && mkdir -m 0755 /nix && USER=root sh nix-*-x86_64-linux/install
 
+# The target image don't have coreutils installed, so we just copy over an empty directory to create a /tmp
+RUN mkdir /emptydir
+
+# Create symlink that will become /bin/sh in the Nix image
+RUN mkdir /nixbin  \
+  && . /root/.nix-profile/etc/profile.d/nix.sh \
+  && export NIX_PATH=/nix/var/nix/profiles/per-user/root/channels \
+  && ln -s "$(nix-build '<nixpkgs>' -A bash)/bin/sh" /nixbin/sh
+
+# Remove garbage
+RUN . /root/.nix-profile/etc/profile.d/nix.sh && nix-store --gc
+
 # Now create the actual image
 FROM scratch
 COPY --from=FETCHER /nix /nix
 COPY --from=FETCHER /etc/passwd /etc/passwd
 COPY --from=FETCHER /etc/shadow /etc/shadow
 COPY --from=FETCHER /etc/group /etc/group
-copy --from=FETCHER /root /root
+COPY --from=FETCHER /root /root
+COPY --from=FETCHER /emptydir /tmp
+COPY --from=FETCHER /nixbin /bin
 
 ONBUILD ENV \
     ENV=/nix/var/nix/profiles/default/etc/profile.d/nix.sh \
